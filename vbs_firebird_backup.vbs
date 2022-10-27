@@ -65,6 +65,7 @@ Dim sEscondeSenha2
 Dim bSemParar
 Dim sTempFolder
 Dim bWantVoice
+Dim iElimina_Apos_Dias
 
 Dim oFS
 Dim oWS
@@ -89,12 +90,11 @@ sLogFile=sTempFolder & "\backup-firebird-" & DataExtenso(Now(),False) & ".log"
 ' Copia sem paradas para dar [OK] ?
 bSemParar=True
 
-' Volume do Backup - Apenas discos que contenham uma pasta com o mesmo
-' nome do Volume do Backup serão reconhecidos
-sBackupVolName="bak-firebird"
-
 ' Se não quiser voz, troque o parametro True Por False
 bWantVoice=False
+
+' Quantos dias se passará para um backup considerar expirado e poderá ser excluido
+iElimina_Apos_Dias=30
 
 ' Detectando localizacao do FB3 e/ou FB4
 sFB_PATH=FB_WhereIsFierbird("", True, False)
@@ -112,9 +112,8 @@ End If
 
 ' sBackupVolName define mais uma subpasta no destino indicado
 sBackupVolName=""
-' Dados de usuario e senha para conectar o firebird
-' para gerar nome de usuario/senha encriptado 
-' use o script Test_[En/De]crypt.vbs
+
+' Usuario e senha para conectar o firebird
 fdb_server="localhost"
 fdb_username= oWS.ExpandEnvironmentStrings("%ISC_USER%")
 fdb_password= oWS.ExpandEnvironmentStrings("%ISC_PASSWORD%")
@@ -189,6 +188,11 @@ For Each sDatabase in oArgs
        Call DoBackup(sDatabase)
 	End If  
 Next
+
+' Limpeza de backups expirados
+if iElimina_Apos_Dias > 0 Then
+  LimparArquivosBackupsAntigos sDestino, iElimina_Apos_Dias
+End If
 
 ' Fala que o backup foi concluido
 if VoiceAPI_Installed(bWantVoice)=True Then
