@@ -1,4 +1,4 @@
-'' Windows Script Host - VBScript
+' Windows Script Host - VBScript
 '-----------------------------------------------------------------
 ' Nome: vbs_firebird_backup.vbs
 ' Proposito : Realização de Backup do Servidor FB
