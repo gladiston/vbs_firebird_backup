@@ -1,6 +1,6 @@
 # vbs_firebird_backup
 
- Windows Script Host - VBScript
+** Windows Script Host - VBScript **
 -----------------------------------------------------------------
  Nome: vbs_firebird_backup.vbs
  Proposito : Realização de Backup do Servidor FB
@@ -8,7 +8,7 @@
  Copyright: (c) Jun 2011, Todos os direitos reservados!
 -----------------------------------------------------------------
 
-Modo de usar:
+*Modo de usar*
  vbs_firebird_backup.vbs \\server\bak "C:\dados\banco1.FDB" "C:\dados\banco2.FDB" "C:\dados\banco3.FDB" "C:\dados\banco4.FDB" "C:\dados\banco5.FDB" 
   Parametro #1: Refere-se ao destino do backup, pode ser uma pasta local ou 
     pasta remota UNC como \\servidor\comparilhamento. Se estiver num host que 
