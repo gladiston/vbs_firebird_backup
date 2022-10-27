@@ -7,8 +7,9 @@
 '-----------------------------------------------------------------
 
 ' Trata-se de um script vbs (Windows Script Host - VBScript) com o propósito 
-' de fazer backup de base de dados FirebirdSQL. Use-o conjuntamente com o agendador 
-' de tarefas no servidor. Ele faz o backup e deposita os arquivos numa pasta local ou remota.
+' de fazer backup de base de dados FirebirdSQL 3+. Use-o conjuntamente com o agendador 
+' de tarefas no servidor para automatizar o backups. também é capaz de 
+' depositar os arquivos numa pasta remota, ex: \\servidor\compartilhamento.
 ' Modo de usar:
 ' vbs_firebird_backup.vbs \\server\bak "C:\dados\banco1.FDB" "C:\dados\banco2.FDB" "C:\dados\banco3.FDB"
 ' 
@@ -18,11 +19,9 @@
 '  agendador de tarefas para rodar a tarefa sob um usuario que tenha 
 '  permissão a pasta remota. Um alerta importante, se estiver num host 
 '  que tenha serviços de sincronização com a nuvem como o onedrive, 
-'  gdrive,... estes serviços não sabem quando o backup terminou e por 
-'  essa razão, quando o backup iniciar-se a cada byte de backup o 
-'  programa irá querer sincronizar quando deveria esperar terminar 
-'  primeira, isso não compromete o backup, mas tornará a sincronização 
-'  para a nuvem bastante demorada.
+'  gdrive,... veja se o tempo de sincronização não compromete o backup,
+'  pois se acontecer um sinistro com o servidor antes que a sincronização
+'  termine daí então terá um belo problema nas mãos.
 ' Parametro #2...N: Todos os parametros seguintes referem-se aos arquivos de dados 
 '   que terão o seu backup realizado, mas atenção que devem estasr em aspas duplas. 
 '   Recomendo que caso opte por varios bancos de uma só vez que então coloque os 
@@ -40,6 +39,11 @@
 '  o host, usuario e senha e não dependeria mais variaveis de ambiente, isso facilitaria, 
 '  mas isto seria imprudente, pois se este script vazar, pessoas inescrupulosas 
 '  poderiam usar essa informação para invadir o seu sistema.
+'
+' Este script tem suporte a voz(de bebado), para ser sincero, não acho que isso seja importante
+'  especialmente em servidores, por isso caso queira desligar troque de 
+'  "True" para "False" na linha:
+' bWantVoice=True
 
 ' Variaveis reservadas que nao podem ser redeclaradas: 
 Dim sDatabase, sResultado, sFB_PATH
@@ -47,23 +51,23 @@ Dim fdb_server, fdb_username, fdb_password, lista_fdb, gbak
 Dim sInicio, sRoot, sDestino, sOriLogFile
 Dim objFolder, objFile, sBackupVolName
 Dim oFS, oWS, oWN
-Dim q,cr,sLogFile,sSemParar,sMensagem, sEscondeSenha1, sEscondeSenha2
+Dim sLogFile
+Dim sMensagem
+Dim sEscondeSenha1
+Dim sEscondeSenha2
+Dim bSemParar
 Dim sTempFolder
 Dim oArgs 
+Dim bWantVoice
 
 Set oWS = WScript.CreateObject("WScript.Shell")
 Set oWN = WScript.CreateObject("WScript.Network")
 Set oFS = WScript.CreateObject("Scripting.FileSystemObject")
 Set oArgs = Wscript.Arguments
 
-' API de Voz do Windows (Windows 10+)
-'   comente caso esteja usando Windows anteriores
-Set VOICE = createobject("sapi.spvoice")
+' API de Voz do Windows (Windows 7+)
+Set VOZ = CreateObject("sapi.spvoice")
 
-' Aspas
-q=Chr(34)
-' LineFeed
-cr=vbCrlf
 ' Mensagem Texto para ser usada em logs e afins
 sMensagem=""
 ' Pasta temporaria
@@ -72,33 +76,17 @@ sTempFolder = oFS.GetSpecialFolder(2)
 sLogFile=sTempFolder & "\backup-firebird-" & DataExtenso(Now(),False) & ".log"
 
 ' Copia sem paradas para dar [OK] ?
-sSemParar=".SIM"
+bSemParar=True
 
 ' Volume do Backup - Apenas discos que contenham uma pasta com o mesmo
 ' nome do Volume do Backup serão reconhecidos
 sBackupVolName="bak-firebird"
 
-' Detectando localizacao do FB3
-sFB_PATH=""
-If ((sFB_PATH="") and _
-   (oFS.FolderExists("C:\Arquivos de programas\Firebird\Firebird_3_0"))) Then 
-  sFB_PATH="C:\Arquivos de programas\Firebird\Firebird_3_0"
-End If
- 
-If (sFB_PATH="") and _
-    (oFS.FolderExists("C:\Program Files\Firebird\Firebird_3_0")) Then 
-   sFB_PATH="C:\Program Files\Firebird\Firebird_3_0"
-End If  
- 
-If (sFB_PATH="") and _
-    (oFS.FolderExists("C:\Arquivos de programas (x86)\Firebird\Firebird_3_0")) Then 
-  sFB_PATH="C:\Arquivos de programas (x86)\Firebird\Firebird_3_0"
-End If
- 
-If (sFB_PATH="") and _
-   (oFS.FolderExists("C:\Program Files (x86)\Firebird\Firebird_3_0")) Then 
-  sFB_PATH="C:\Program Files (x86)\Firebird\Firebird_3_0"
-End If  
+' Se não quiser voz, troque o parametro True Por False
+bWantVoice=False
+
+' Detectando localizacao do FB3 e/ou FB4
+sFB_PATH=FB_WhereISFierbird("", True, False)
 
 ' Se nao foi encontrado entao cai fora 
 If (sFB_PATH="") Then   
@@ -155,7 +143,6 @@ End If
 ' O log até essa esse ponto sera transferido para um novo local que é mais permanente
 sOriLogFile=sDestino+"\" & sBackupVolName & "-" & DataExtenso(Now(),False) & ".log"
 If oFS.FileExists(sLogFile) Then 
-  'oFS.CopyFile sLogFile, ExtractPath(sOriLogFile), True
   oFS.CopyFile sLogFile, sOriLogFile, True
   oFS.DeleteFile sLogFile
 End If
@@ -166,6 +153,10 @@ sLogFile= sOriLogFile
 '--------------------
 ' Inicio do programa
 '--------------------
+' Fala que o backup esta sendo iniciado
+if VoiceAPI_Installed(bWantVoice)=True Then
+  VOZ.Speak "Backup do Firebird esta sendo iniciado agora"
+End If  
 
 For Each sDatabase in oArgs
 	If oFS.FileExists(sDatabase) And sDatabase<>sRoot Then 
@@ -173,9 +164,10 @@ For Each sDatabase in oArgs
 	End If  
 Next
 
-' Se não quiser voz, comente a linha abaixo.
-VOICE.Speak "Backup do Firebird concluído, observe os logs em " & sRoot
-
+' Fala que o backup foi concluido
+if VoiceAPI_Installed(bWantVoice)=True Then
+  VOZ.Speak "Backup do Firebird concluído, observe os logs em " & sRoot
+End If  
 '--------------------
 ' Finaliza o programa
 '--------------------
@@ -185,19 +177,28 @@ Call LimpezaESair
 ' SubRotinas necessárias para executar apenas este script
 '-----------------------------------------------------------------
 Sub DoBackup(sOrigem)
-Dim sDestino2, sArq, sCmd
+  Dim sDestino_real
+  Dim sDestino_temp
+  Dim sArq
+  Dim sCmd
   sArq=GetFileBaseName(sOrigem)
   sLogFile=sDestino & "\" & sArq & "-" & sInicio & ".log"
-  sDestino2=sDestino & "\" & sArq & "-" & sInicio & ".fbk"
-  sCmd = q & gbak & q & " -v -b -t " &_
-    " -user " & q & fdb_username & q &_ 
-    " -password " & q & fdb_password & q & " " &_
-    q & fdb_server & ":" & sOrigem & q & " "  &_
-    q & sDestino2 & q & " " &_
-    " -Y " & q & sLogFile & q & " " 	
-  'WScript.Echo sCmd			' debug
+  sDestino_real=sDestino & "\" & sArq & "-" & sInicio & ".fbk"
+  sDestino_temp=sTempFolder & "\" & sArq & "-" & sInicio & ".fbk"
+  sCmd = Chr(34) & gbak & Chr(34) & " -v -b -t " &_
+    " -user " & Chr(34) & fdb_username & Chr(34) &_ 
+    " -password " & Chr(34) & fdb_password & Chr(34) & " " &_
+    Chr(34) & fdb_server & ":" & sOrigem & Chr(34) & " "  &_
+    Chr(34) & sDestino_temp & Chr(34) & " " &_
+    " -Y " & Chr(34) & sLogFile & Chr(34) & " " 	
+
+  ' Executando...
   sResultado = RunAsAgente(sCmd)
   
+  If oFS.FileExists(sDestino_temp) Then 
+    oFS.CopyFile sDestino_temp, sDestino_real, True
+    oFS.DeleteFile sDestino_temp
+  End If  
 End Sub
 
 ' Simplesmente Finaliza o programa e reseta valores 
@@ -210,13 +211,13 @@ End Sub
 
 Function AddToLog(sMensagem)
   Dim objFile
-  AddToLog="NAO"
+  AddToLog=False
   Const ForAppending = 8
   set objFile = oFS.OpenTextFile(sLogFile, ForAppending, True)
   sMensagem = Replace(sMensagem,sEscondeSenha1,"*****") 
   sMensagem = Replace(sMensagem,sEscondeSenha2,"*****") 
   objFile.WriteLine(DataExtenso(Now(), true) & ";" & sMensagem)
-  If (Err.Number <> 0) and ( sSemParar<>"SIM" ) Then
+  If (Err.Number <> 0) and ( bSemParar<>True ) Then
     WScript.Echo "Adicionando mensagem ao arquivo :" & sLogFile & vbCrlf & _
       "Código do Erro: " & Err.Number & vbCrlf & _
       "Código do Erro (Hex): " & Hex(Err.Number) & vbCrlf & _
@@ -224,7 +225,7 @@ Function AddToLog(sMensagem)
       "Descrição do Erro: " &  Err.Description
     Err.Clear
   else
-    AddToLog="SIM"
+    AddToLog=True
   End If
   objFile.Close 
 End Function
@@ -244,8 +245,9 @@ Dim Resultado, sYear, sMonth, sDay, sHour, sMin, sSec
   if Len(sMin)=1 then sMin= "0" & sMin
   if Len(sSec)=1 then sSec= "0" & sSec
   Resultado = sYear & "-" & sMonth & "-" & sDay 
-  if sExibeHoras=True Then Resultado=Resultado & "+" & sHour & "h" & sMin & "m" & sSec & "s"
-	
+  if sExibeHoras=True Then 
+    Resultado=Resultado & "+" & sHour & "h" & sMin & "m" & sSec & "s"
+  End If	
   DataExtenso = Resultado 
 End Function
 
@@ -283,7 +285,7 @@ Dim strFile, sArq, sExt
 End Function
 
 Function RunAsAgente(ACMD)
-  RunAsAgente = "NAO"
+  RunAsAgente = False
   If Not oFS.FileExists(ACMD) Then
 	  oWS.run ACMD, 1, True  
 	  'oWS.run(ACMD)
@@ -294,9 +296,9 @@ Function RunAsAgente(ACMD)
 		   "Fonte: " &  Err.Source & vbCrlf & _
 		   "Descrição do Erro: " &  Err.Description
 		 AddToLog(sMensagem)
-		 if  ( sSemParar<>"SIM" ) Then WScript.Echo( sMensagem )
+		 if  ( bSemParar<>False ) Then WScript.Echo( sMensagem )
 	  else
-		 RunAsAgente="SIM"
+		 RunAsAgente=False
 		 sMensagem = vbTab & "Sucesso : " & ACMD
 		 AddToLog(sMensagem)	   
 	  End If    
@@ -307,20 +309,24 @@ End Function
 ' Elimina arquivos de uma pasta que sejam mais antigos que a 
 ' data atual - iDaysOld 
 Sub LimparArquivosBackupsAntigos(sDirectoryPath, iDaysOld)
-Dim oFolder, oFileCollection, oFile, sPodeApagar, sFileName  
+Dim oFolder
+Dim oFileCollection
+Dim oFile
+Dim bPodeApagar
+Dim sFileName  
 Dim sDir   
   Set oFS = CreateObject("Scripting.FileSystemObject") 
   Set oFolder = oFS.GetFolder(sDirectoryPath) 
   Set oFileCollection = oFolder.Files 
 
   For each oFile in oFileCollection
-    'No exemplo abaixo, apenas arquivos com a extensão .dat seriam apagados
-    sPodeApagar="N" 
+    'No exemplo abaixo, apenas arquivos com a extensão .fbk, .log e .dat seriam apagados
+    bPodeApagar=False 
     sFileName=Cstr(sDirectoryPath) & "\" & Cstr(oFile.Name)
-    If LCase(Right(Cstr(oFile.Name), 3)) = "fbk" Then sPodeApagar="S"
-    If LCase(Right(Cstr(oFile.Name), 3)) = "dat" Then sPodeApagar="S"
-    If LCase(Right(Cstr(oFile.Name), 3)) = "log" Then sPodeApagar="S"
-    If sPodeApagar = "S" Then
+    If LCase(Right(Cstr(oFile.Name), 3)) = "fbk" Then bPodeApagar=True
+    If LCase(Right(Cstr(oFile.Name), 3)) = "dat" Then bPodeApagar=True
+    If LCase(Right(Cstr(oFile.Name), 3)) = "log" Then bPodeApagar=True
+    If bPodeApagar = True Then
       If oFile.DateLastModified < (Date() - iDaysOld) Then 
         oFile.Delete(True)   
         If Err.Number <> 0 Then
@@ -340,3 +346,66 @@ Dim sDir
   Set oFileCollection = Nothing 
   Set oFile = Nothing   
 End Sub
+
+'VoiceAPI_Installed: Detecta se o Windows atual teria suporte a voz
+'Essa função é dummy ainda, pois não achei um metodo seguro para fazer
+'isso que funcione desde o Windows 2000
+Function VoiceAPI_Installed(bReqVoice)
+  VoiceAPI_Installed=bReqVoice
+  'Todo: Criar um codigo que saiba que apenas Win7+ tem suporte a voz
+  'VoiceAPI_Installed=True/False
+End Function
+
+Function FB_WhereISFierbird(sIfNotFoundReturnAs, bCheckFB3, bCheckFB4)
+    Dim S
+    S=""
+	if (bCheckFB3=True) Then
+		If ((S="") and _
+		   (oFS.FolderExists("C:\Arquivos de programas\Firebird\Firebird_3_0"))) Then 
+		  S="C:\Arquivos de programas\Firebird\Firebird_3_0"
+		End If
+		 
+		If (S="") and _
+			(oFS.FolderExists("C:\Program Files\Firebird\Firebird_3_0")) Then 
+		   S="C:\Program Files\Firebird\Firebird_3_0"
+		End If  
+		 
+		If (S="") and _
+			(oFS.FolderExists("C:\Arquivos de programas (x86)\Firebird\Firebird_3_0")) Then 
+		  S="C:\Arquivos de programas (x86)\Firebird\Firebird_3_0"
+		End If
+		 
+		If (S="") and _
+		   (oFS.FolderExists("C:\Program Files (x86)\Firebird\Firebird_3_0")) Then 
+		  S="C:\Program Files (x86)\Firebird\Firebird_3_0"
+		End If  
+	End If	
+	if (bCheckFB4=True) Then
+		If ((S="") and _
+		   (oFS.FolderExists("C:\Arquivos de programas\Firebird\Firebird_4_0"))) Then 
+		  S="C:\Arquivos de programas\Firebird\Firebird_4_0"
+		End If
+		 
+		If (S="") and _
+			(oFS.FolderExists("C:\Program Files\Firebird\Firebird_4_0")) Then 
+		   S="C:\Program Files\Firebird\Firebird_4_0"
+		End If  
+		 
+		If (S="") and _
+			(oFS.FolderExists("C:\Arquivos de programas (x86)\Firebird\Firebird_4_0")) Then 
+		  S="C:\Arquivos de programas (x86)\Firebird\Firebird_4_0"
+		End If
+		 
+		If (S="") and _
+		   (oFS.FolderExists("C:\Program Files (x86)\Firebird\Firebird_4_0")) Then 
+		  S="C:\Program Files (x86)\Firebird\Firebird_4_0"
+		End If  
+	End If	
+
+    if S="" Then
+		FB_WhereISFierbird=sIfNotFoundReturnAs
+	Else
+		FB_WhereISFierbird=S	
+	End if
+
+End Function
