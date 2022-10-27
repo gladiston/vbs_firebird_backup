@@ -110,9 +110,8 @@ If Not oFS.FileExists(gbak) Then
   Call LimpezaESair
 End If
 
-' Volume do Backup - Apenas discos que contenham uma pasta com o mesmo
-' nome do Volume do Backup serão reconhecidos
-sBackupVolName="bak-firebird"
+' sBackupVolName define mais uma subpasta no destino indicado
+sBackupVolName=""
 ' Dados de usuario e senha para conectar o firebird
 ' para gerar nome de usuario/senha encriptado 
 ' use o script Test_[En/De]crypt.vbs
@@ -126,7 +125,11 @@ sEscondeSenha1=fdb_password
 sInicio = DataExtenso(Now(),True)
 
 'Destino do Backup
-sRoot = wscript.arguments(0) & "\" & sBackupVolName
+sRoot = wscript.arguments(0)
+if sBackupVolName<>"" then
+  sRoot = sRoot & "\" & sBackupVolName
+End If 
+ 
 If Not oFS.FolderExists(sRoot) Then 
   Set objFolder = oFS.CreateFolder(sRoot)
   Set objFolder = Nothing  
@@ -168,6 +171,18 @@ sLogFile= sOriLogFile
 if VoiceAPI_Installed(bWantVoice)=True Then
   VOZ.Speak "Backup do Firebird esta sendo iniciado agora"
 End If  
+
+If not bSemParar Then
+	WScript.Echo "Prestes a iniciar o backup:" & vbCrlf & vbCrlf & _
+		  "Firebird: " & sFB_PATH & vbCrlf & _
+		  "Firebird Server: " & fdb_server & vbCrlf & _
+		  "Firebird User: " &  fdb_username & vbCrlf & _
+		  "Firebird Password: " &  Len(fdb_password) & " digitos" & vbCrlf & _
+		  "Destino Root: " & sRoot & vbCrlf & _
+		  "Destino completo: " & sDestino & vbCrlf & _
+		  "Log File: " & sLogFile & vbCrlf & _
+		  "Clique OK para prosseguir" 
+End If
 
 For Each sDatabase in oArgs
 	If oFS.FileExists(sDatabase) And sDatabase<>sRoot Then 
