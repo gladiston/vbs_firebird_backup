@@ -97,7 +97,7 @@ sBackupVolName="bak-firebird"
 bWantVoice=False
 
 ' Detectando localizacao do FB3 e/ou FB4
-sFB_PATH=FB_WhereISFierbird("", True, False)
+sFB_PATH=FB_WhereIsFierbird("", True, False)
 
 ' Se nao foi encontrado entao cai fora 
 If (sFB_PATH="") Then   
@@ -375,14 +375,14 @@ End Sub
 
 'VoiceAPI_Installed: Detecta se o Windows atual teria suporte a voz
 'Essa função é dummy ainda, pois não achei um metodo seguro para fazer
-'isso que funcione desde o Windows 2000
+'isso que funcione desde o Windows 2003
 Function VoiceAPI_Installed(bReqVoice)
   VoiceAPI_Installed=bReqVoice
   'Todo: Criar um codigo que saiba que apenas Win7+ tem suporte a voz
   'VoiceAPI_Installed=True/False
 End Function
 
-Function FB_WhereISFierbird(sIfNotFoundReturnAs, bCheckFB3, bCheckFB4)
+Function FB_WhereIsFierbird(sIfNotFoundReturnAs, bCheckFB3, bCheckFB4)
     Dim S
     S=""
 	if (bCheckFB3=True) Then
