@@ -94,7 +94,7 @@ bSemParar=True
 bWantVoice=False
 
 ' Quantos dias se passará para um backup considerar expirado e poderá ser excluido
-iElimina_Apos_Dias=30
+iElimina_Apos_Dias=180
 
 ' Detectando localizacao do FB3 e/ou FB4
 sFB_PATH=FB_WhereIsFierbird("", True, False)
