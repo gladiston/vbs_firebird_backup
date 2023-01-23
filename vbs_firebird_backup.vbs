@@ -16,12 +16,12 @@
 ' Parametro #1: Refere-se ao destino do backup, pode ser uma pasta local ou pasta
 '  remota do tipo UNC como \\servidor\compatilhamento. Se usar uma pasta remota 
 '  junto com o agendador de tarefas, programe o agendador de tarefas para rodar a 
-'  tarefa sob um usuario que tenha permissão a pasta remota e também que o enviroment deste 
-'  usuário tenha as variaveis de ambiente ISC_USER e ISC_PASSWORD. Um alerta importante, 
-'  se estiver num host que tenha serviços de sincronização com a nuvem como o 
-'  onedrive, gdrive,... veja se o tempo de sincronização não compromete o backup, 
-'  pois se acontecer um sinistro com o servidor antes que a sincronização 
-'  termine e então terá um belo problema nas mãos.
+'  tarefa sob um usuario que tenha permissão sobre a pasta remota e também que 
+'  as variaveis de ambiente deste usuário contenha ISC_USER e ISC_PASSWORD. 
+'  Um alerta importante, se estiver num host que tenha serviços de sincronização 
+'  com a nuvem como o onedrive, gdrive,... veja se o tempo de sincronização não 
+'  compromete o backup, pois se acontecer um sinistro com o servidor antes que 
+'  a sincronização termine e então terá um belo problema nas mãos.
 ' Parametro #2..N: Todos os parametros seguintes referem-se aos arquivos de dados que 
 '  terão o seu backup realizado, mas atenção que devem estar em aspas duplas. 
 '  Recomendo que caso opte por varios bancos de uma só vez que então coloque os bancos 
@@ -35,7 +35,9 @@
 '   fdb_server="localhost"
 '   fdb_username= oWS.ExpandEnvironmentStrings("%ISC_USER%")
 '   fdb_password= oWS.ExpandEnvironmentStrings("%ISC_PASSWORD%")
-' Porém ao modificá-las e colocar valores explicitos voce estaria sendo imprudente, pois se este script vazar, pessoas inescrupulosas poderiam usar essas informações explicitadas para invadir o seu sistema.
+' Porém ao modificá-las e colocar valores explicitos voce estaria sendo imprudente, 
+'   pois se este script vazar, pessoas inescrupulosas poderiam usar essas informações 
+'   explicitadas para invadir o seu sistema.
 '
 ' Este script tem suporte a voz(de bêbado) para indicar verbalmente quando inicia 
 '  e quando termina, mas para ser sincero, não acho que isso seja importante 
@@ -67,6 +69,10 @@ Dim sTempFolder
 Dim bWantVoice
 Dim iElimina_Apos_Dias
 
+Dim sToday_Year
+Dim sToday_Month
+Dim sToday_Day
+
 Dim oFS
 Dim oWS
 Dim oWN
@@ -80,10 +86,19 @@ Set oArgs = Wscript.Arguments
 ' API de Voz do Windows (Windows 7+)
 Set VOZ = CreateObject("sapi.spvoice")
 
+' Captura ano, mes e dia. Onde mes e dia tem 2 digitos.
+sToday_Year=Year(DateValue(Now()))
+sToday_Month=Month(DateValue(Now()))
+if Len(sToday_Month)=1 then sToday_Month= "0" & sToday_Month
+sToday_Day=Day(DateValue(Now()))
+if Len(sToday_Day)=1 then sToday_Day= "0" & sToday_Day
+  
 ' Mensagem Texto para ser usada em logs e afins
 sMensagem=""
+
 ' Pasta temporaria
 sTempFolder = oFS.GetSpecialFolder(2)
+
 ' Arquivo de log
 sLogFile=sTempFolder & "\backup-firebird-" & DataExtenso(Now(),False) & ".log"
 
@@ -97,7 +112,7 @@ bWantVoice=False
 iElimina_Apos_Dias=180
 
 ' Detectando localizacao do FB3 e/ou FB4
-sFB_PATH=FB_WhereIsFierbird("", True, False)
+sFB_PATH=FB_WhereIsFirebird("", True, False)
 
 ' Se nao foi encontrado entao cai fora 
 If (sFB_PATH="") Then   
@@ -134,7 +149,22 @@ If Not oFS.FolderExists(sRoot) Then
   Set objFolder = Nothing  
 End If
 
-sDestino = sRoot & "\" & WeekdayName(Weekday(Now()),False,1)
+' Acrescenta a unidade de destino, o ano ...\2023
+sDestino = sRoot & "\" & sToday_Year
+If Not oFS.FolderExists(sDestino) Then 
+  Set objFolder = oFS.CreateFolder(sDestino)
+  Set objFolder = Nothing 
+End If
+
+' Acrescenta a unidade de destino, o mes ...\2023\01
+sDestino = sDestino & "\" & sToday_Month
+If Not oFS.FolderExists(sDestino) Then 
+  Set objFolder = oFS.CreateFolder(sDestino)
+  Set objFolder = Nothing 
+End If
+
+' Acrescenta a unidade de destino, o dia ...\2023\01\01
+sDestino = sDestino & "\" & sToday_Day
 If Not oFS.FolderExists(sDestino) Then 
   Set objFolder = oFS.CreateFolder(sDestino)
   Set objFolder = Nothing 
@@ -191,12 +221,12 @@ Next
 
 ' Limpeza de backups expirados
 if iElimina_Apos_Dias > 0 Then
-  LimparArquivosBackupsAntigos sDestino, iElimina_Apos_Dias
+  LimparArquivosBackupsAntigos sRoot, iElimina_Apos_Dias
 End If
 
 ' Fala que o backup foi concluido
 if VoiceAPI_Installed(bWantVoice)=True Then
-  VOZ.Speak "Backup do Firebird concluído, observe os logs em " & sRoot
+  VOZ.Speak "Backup do Firebird concluído, observe os logs em " & sDestino
 End If  
 '--------------------
 ' Finaliza o programa
@@ -386,7 +416,7 @@ Function VoiceAPI_Installed(bReqVoice)
   'VoiceAPI_Installed=True/False
 End Function
 
-Function FB_WhereIsFierbird(sIfNotFoundReturnAs, bCheckFB3, bCheckFB4)
+Function FB_WhereIsFirebird(sIfNotFoundReturnAs, bCheckFB3, bCheckFB4)
     Dim S
     S=""
 	if (bCheckFB3=True) Then
@@ -433,9 +463,9 @@ Function FB_WhereIsFierbird(sIfNotFoundReturnAs, bCheckFB3, bCheckFB4)
 	End If	
 
     if S="" Then
-		FB_WhereISFierbird=sIfNotFoundReturnAs
+		FB_WhereISFirebird=sIfNotFoundReturnAs
 	Else
-		FB_WhereISFierbird=S	
+		FB_WhereISFirebird=S	
 	End if
 
 End Function
