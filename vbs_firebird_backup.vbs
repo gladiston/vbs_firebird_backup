@@ -164,7 +164,7 @@ If Not oFS.FolderExists(sDestino) Then
 End If
 
 ' Acrescenta a unidade de destino, o dia ...\2023\01\01
-sDestino = sDestino & "\" & sToday_Day
+sDestino = sDestino & "\" & sToday_Day & "-" & WeekdayName(Weekday(Now()),True,1)
 If Not oFS.FolderExists(sDestino) Then 
   Set objFolder = oFS.CreateFolder(sDestino)
   Set objFolder = Nothing 
